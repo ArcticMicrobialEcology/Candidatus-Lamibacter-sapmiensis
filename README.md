@@ -232,8 +232,10 @@ iqtree -s nifH_MAGs_north_zehr.aln.trimal.faa \
 
 ## Analysis of MAGs containing nifH homologs
 
-Now we will continue working with a subset of the Kilpisjärvi MAGs that contain *nifH* homologs.  
-We will import the *nifH* MAGs to `anvi'o` and annotate them.  
+Now we will continue working only with the Kilpisjärvi MAGs that contain *nifH* homologs.  
+We will import them to `anvi'o`, this time as a unified `CONTIGS.db`.  
+We will then search for a set of 71 bacterial and 76 archaeal single-copy genes, which will be searched against the *GTDB* database.  
+And coding sequences will be annotated against the *KOfam* and *COG* databases:  
 
 ```bash
 mkdir ${WD}/NIFH_MAGs && cd $_
@@ -258,7 +260,7 @@ anvi-gen-contigs-database --contigs-fasta CONTIGS.fa \
 anvi-run-hmms --contigs-db CONTIGS.db \
               --num-threads ${NUM_THREADS}
 
-# Setup GTDB, KEGG and COG databases in anvi'o
+# Setup GTDB, KOfam and COG databases in anvi'o
 anvi-setup-scg-taxonomy
 anvi-setup-kegg-kofams
 anvi-setup-ncbi-cogs
@@ -276,7 +278,9 @@ anvi-run-ncbi-cogs --contigs-db CONTIGS.db \
                    --num-threads ${NUM_THREADS}
 ```
 
-Now we classify the MAGs using `GTDB-Tk`:  
+To classify the MAGs, we will use `GTDB-Tk` and the GTDB r202.  
+First, see [here](https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data) how to setup the reference data.  
+Then let's run `GTDB-Tk`:  
 
 ```bash
 gtdbtk classify_wf --genome_dir FASTA \
@@ -286,6 +290,10 @@ gtdbtk classify_wf --genome_dir FASTA \
 ```
 
 ## Read recruitment analysis
+
+In this section, we will use read recrutiment analysis to estimate the abundance of the *nifH* MAGs in the metagenomes from which they originated.  
+Before doing this, we need to see if the MAGs are sufficiently different from each other; if not they need to be dereplicated before mapping.  
+We can do this with `pyANI` inside `anvi'o`:  
 
 ```bash
 mkdir ${WD}/MAPPING && cd $_
@@ -301,10 +309,10 @@ for MAG in `cat MAG-LIST.txt`; do
 done >> external_genomes.txt
 
 # Compute ANI with pyANI
-anvi-compute-genome-similarity --internal-genomes external_genomes.txt \
+anvi-compute-genome-similarity --external-genomes external_genomes.txt \
                                --output-dir PYANI \
                                --program pyANI \
                                --num-threads ${NUM_THREADS}
 ```
 
-All MAGs are already < 95% ANI to each other, in fact maximum pairwise ANI is 84.1%.  
+All MAGs have < 95% ANI with each other, so we don't need to dereplicate them.  
