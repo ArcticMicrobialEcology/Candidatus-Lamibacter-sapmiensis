@@ -16,9 +16,18 @@ Principal Investigator
 [E-mail](mailto:jenni.hultman@helsinki.fi)
 
 
+## Table of contents
+
+1. [Before starting](#before-starting)
+2. [Analysis of nifH homologs](#analysis-of-nifh-homologs)
+3. [Analysis of MAGs containing nifH homologs](#analysis-of-mags-containing-nifh-homologs)
+4. [Read recruitment analysis](#read-recruitment-analysis)
+5. [Analysis of the Eremiobacterota MAG KWL-0264](#analysis-of-the-eremiobacterota-mag-kwl-0264)
+
+
 ## Before starting
 
-You will need to have these softwares installed and added to your path:  
+We will need to have these softwares installed and added to your path:  
 
 * [GNU parallel](https://gnu.org/software/parallel)
 * [anvi'o v7.1](https://anvio.org)
@@ -39,35 +48,36 @@ You will need to have these softwares installed and added to your path:
 * [Kaiju v1.9.2](https://bioinformatics-centre.github.io/kaiju)
 * [ncbi-genome-download v0.3.3](https://github.com/kblin/ncbi-genome-download)
 
-You will need to define some environmental variables:  
+We can define some environmental variables to simplify some things:  
 
 ```bash
-# Number of jobs to run in parallel; change to the number of cores available in your system
+# Number of jobs to run in parallel
+# Change to the number of cores available in your system
 export NUM_THREADS=40 
 
-# Working directory; change to where you want to run the analyses
-export WD=~/Lamibacter-sapmiensis
+# Working directory
+# Change to where you want to run the analyses
+export WD='~/Lamibacter-sapmiensis'
 
 # Create working directory if it doesn't exist
 if [[ ! -d ${WD} ]]; then mkdir ${WD}; fi
 ```
 
-Finally, you will need to get the 796 Kilpisjärvi MAGs from [Pessi *et al*. 2022](https://doi.org/10.1186/s40793-022-00424-2).  
-Here we will download them from [FigShare](https://doi.org/10.6084/m9.figshare.19722505), but they are also available in [ENA](https://ebi.ac.uk/ena/browser/view/PRJEB41762).    
-Then we will import them to `anvi'o`.  
+Finally, we will need to get the 796 Kilpisjärvi MAGs from [Pessi *et al*. (2022)](https://doi.org/10.1186/s40793-022-00424-2).  
+Here we will download them from [FigShare](https://doi.org/10.6084/m9.figshare.19722505), but they are also available in [ENA](https://ebi.ac.uk/ena/browser/view/PRJEB41762):  
 
 ```bash
 mkdir ${WD}/KILPISJARVI_MAGs && cd $_
 
-# Download tarball and unpack
+# Download tarball
 wget https://figshare.com/ndownloader/files/35025601 -O kilpisjarvi_MAGs.tar.gz
 
 # Unpack tarball
 mkdir RAW && cd $_
 tar zxfv ../kilpisjarvi_MAGs.tar.gz
+cd ..
 
 # Clean up file and contig names
-cd ..
 mkdir CLEAN
 
 for f in `ls RAW/*.fa.gz | grep -E -o 'K[UW]L-[0-9]+'`; do
@@ -78,9 +88,8 @@ done
 
 ## Analysis of nifH homologs
 
-Here we will search the 796 Kilpisjärvi MAGs for *nifH* homologs.  
-We will use the hidden Markov Model (HMM) K02588 from [KOfam](https://academic.oup.com/bioinformatics/article/36/7/2251/5631907).  
-Then we will import the MAGs to `anvi'o`, where we will do the search:  
+Now that we have the FASTA files for the 796 Kilpisjärvi MAGs, we will search them for *nifH* homologs.   
+The first thing that we will do is import them to `anvi'o`, which is where most of the analyses will be carried out:  
 
 ```bash
 cd ${WD}/KILPISJARVI_MAGs
@@ -89,13 +98,24 @@ mkdir CONTIGSDB
 # List MAGs
 ls CLEAN/*.fa | grep -E -o 'K[UW]L_[0-9]+' > MAG-LIST.txt
 
-# Create anvi'o contig databases
+# Create the anvi'o contig databases
 cat MAG-LIST.txt |
 parallel -I % --bar -j ${NUM_THREADS}  'anvi-gen-contigs-database --contigs-fasta CLEAN/%.fa \
                                                                   --output-db-path CONTIGSDB/%.db 2> CONTIGSDB/%_contigs.log'
 ```
 
-Now we can do the search:  
+To search for *nifH* homologs, we will use the hidden Markov Model (HMM) K02588 from [KOfam](https://academic.oup.com/bioinformatics/article/36/7/2251/5631907).  
+To do this search inside `anvi'o`, we have to create a [custom HMM source](https://anvio.org/help/main/artifacts/hmm-source/#user-defined-hmm-sources).  
+You can either do this from scratch or you can get this [tarball](https://github.com/ArcticMicrobialEcology/Candidatus-Lamibacter-sapmiensis/blob/main/K02588_anvio.tar.gz) and unpack it in you working directory:   
+
+```bash
+cd ${WD}
+
+wget https://github.com/ArcticMicrobialEcology/Candidatus-Lamibacter-sapmiensis/raw/main/K02588_anvio.tar.gz
+tar zxf K02588_anvio.tar.gz
+```
+
+Now we can do the search in `anvi'o`:  
 
 ```bash
 mkdir ${WD}/NIFH_ANALYSIS && cd $_
@@ -113,9 +133,9 @@ parallel -I % --bar -j ${NUM_THREADS}  'anvi-script-get-hmm-hits-per-gene-call -
                                                                                --hmm-source K02588'
 ```
 
-In the last step, some will throw an error:  
+In the last step, some MAGs will throw an error:  
 `Config Error: Your contigs database does not have any HMM hits for the HMM source K02588 :/`  
-But that is OK, it just means that no hits were found for that particular MAG.    
+But that's OK, it just means that no hits were found for this particular MAG.    
 
 Let's now retrieve the *nifH* sequences:  
 
@@ -135,60 +155,73 @@ parallel -I % --bar --max-args 1 'anvi-get-sequences-for-hmm-hits --contigs-db $
                                                                   --output-file FASTA/%.faa \
                                                                   --hmm-source K02588 \
                                                                   --get-aa-sequences'
-```
 
-The next step is to search publc databases to see to what our *nifH*  sequences are similar to.  
-
-Now we can do the search wth `blastp`:  
-
-```bash
 # Concatenate sequences
 for f in `cat MAG-LIST.txt`; do
   cat FASTA/${f}.faa
 done > nifH_MAGs.faa
+```
 
-# BLAST against nr
+To check that these sequences are indeed *nifH*, we can use `blastp` to find similar sequences in public databases such as *nr*, *RefSeq* and *Swiss-Prot*.  
+The simplest way to do this would be to take the file `nifH_MAGs.faa` and run it through the `blastp` [web interface](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CLIENT=web&DATABASE=nr&NCBI_GI=on&PAGE=Proteins&PROGRAM=blastp&QUERY=IDQILETNRIACRFNHSNQKYAFSITFQEECAHVTLVVYGRNLHKHFFYWKLHKQLIDLIANPNDMFFF&END_OF_HTTPGET=Y).  
+We can also do this locally if we have a copy of the database:   
+
+```bash
+
+# Setup the databases
+# Change to where they are located in your system
+export NR_PATH='~/Lamibacter-sapmiensis/dbs/nr'
+export RS_PATH='~/Lamibacter-sapmiensis/dbs/refseq'
+export SP_PATH='~/Lamibacter-sapmiensis/dbs/swissprot'
+
+# Search against nr
 blastp -query nifH_MAGs.faa \
        -out nifH_blast_nr.txt \
        -outfmt "6 qseqid sseqid stitle sscinames pident qcovs evalue bitscore" \
        -db ${NR_PATH} \
        -num_threads ${NUM_THREADS}
 
-# BLAST against RefSeq
+# Search against RefSeq
 blastp -query nifH_MAGs.faa \
        -out nifH_blast_refseq.txt \
        -outfmt "6 qseqid sseqid stitle sscinames pident qcovs evalue bitscore" \
-       -db ${RF_PATH} \
+       -db ${RS_PATH} \
        -num_threads ${NUM_THREADS}
 
-# BLAST against SWISS
+# Search against SWISS
 blastp -query nifH_MAGs.faa \
-       -out nifH_blast_swiss.txt \
+       -out nifH_blast_swissprot.txt \
        -outfmt "6 qseqid sseqid stitle sscinames pident qcovs evalue bitscore" \
-       -db ${SWISS_PATH} \
+       -db ${SP_PATH} \
        -num_threads ${NUM_THREADS}
 ```
 
-And, for the phylogenetic analysis, we need to get some references.  
-
-Now let's get a phylogenetic tree:  
+Another way to check our *nifH* sequences is with a phylogenetic analysis.
+Here we will use reference sequences from the [Zehr lab](https://jzehrlab.com/nifh) and from [North *et al*. (2020)](https://doi.org/10.1126/science.abb6310).  
+The *Zehr* sequences are available as a FASTA file [here](https://wwwzehr.pmc.ucsc.edu/Genome879/genome879.fasta), and the accession numbers for the *North* sequences can be found in this Excel file [here](https://www.science.org/doi/suppl/10.1126/science.abb6310/suppl_file/abb6310_tables5.xlsx).  
+Once we have obtained the two sets of FASTA files, we can proceed to the phylogenetic analysis:  
 
 ```bash
-# Concatenate sequences
-cat nifH_MAGs.faa ${NORTH_FAA} ${ZEHR_FAA} > nifH_MAGs_north_zehr.faa
+# Set up the reference sequences
+# Change to where they are located in your system
+export NORTH_PATH='~/Lamibacter-sapmiensis/dbs/north.faa'
+export JZEHR_PATH='~/Lamibacter-sapmiensis/dbs/jzehr.faa'
 
-# Align
+# Concatenate the Kilpisjärvi, North and Zehr sequences
+cat nifH_MAGs.faa ${NORTH_PATH} ${JZEHR_PATH} > nifH_MAGs_north_zehr.faa
+
+# Align with MAFFT
 mafft --auto \
       --reorder \
       --thread ${NUM_THREADS} \
       nifH_MAGs_north_zehr.faa > nifH_MAGs_north_zehr.aln.faa
 
-# Trim alignment
+# Trim alignment with trimAl
 trimal -in nifH_MAGs_north_zehr.aln.faa \
        -out nifH_MAGs_north_zehr.aln.trimal.faa \
        -gappyout
 
-# Build tree
+# Build tree with IQ-TREE
 iqtree -s nifH_MAGs_north_zehr.aln.trimal.faa \
        -m LG+R10 \
        -alrt 1000 \
